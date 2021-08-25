@@ -301,11 +301,115 @@ class Dataset(data.Dataset):
     def __len__(self):
         return len(self.info['images'])
 
+class Dataset_DA(Dataset):
+    def __init__(self, opt):
+        self.opt = opt
+        self.seq_per_img = 1
+        
+        # feature related options
+        self.use_fc = getattr(opt, 'use_fc', True)
+        self.use_att = getattr(opt, 'use_att', True)
+        self.use_box = getattr(opt, 'use_box', 0)
+        self.norm_att_feat = getattr(opt, 'norm_att_feat', 0)
+        self.norm_box_feat = getattr(opt, 'norm_box_feat', 0)
+
+        # load the json file which contains additional information about the dataset
+        print('DataLoader da loading json file: ', opt.input_json_da)
+        self.info = json.load(open(self.opt.input_json_da))
+        if 'ix_to_word' in self.info:
+            self.ix_to_word = self.info['ix_to_word']
+            self.vocab_size = len(self.ix_to_word)
+            print('vocab size is ', self.vocab_size)
+        
+        # open the hdf5 file
+        print('DataLoader da loading h5 file: ', opt.input_fc_dir_da, opt.input_att_dir_da, opt.input_label_h5_da)
+        """
+        Setting input_label_h5 to none is used when only doing generation.
+        For example, when you need to test on coco test set.
+        """
+        if self.opt.input_label_h5 != 'none':
+            self.h5_label_file = h5py.File(self.opt.input_label_h5_da, 'r', driver='core')
+            # load in the sequence data
+            seq_size = self.h5_label_file['labels'].shape
+            self.label = self.h5_label_file['labels'][:]
+            self.seq_length = seq_size[1]
+            print('max sequence length in data is', self.seq_length)
+            # load the pointers in full to RAM (should be small enough)
+            self.label_start_ix = self.h5_label_file['label_start_ix'][:]
+            self.label_end_ix = self.h5_label_file['label_end_ix'][:]
+        else:
+            self.seq_length = 1
+
+        self.data_in_memory = getattr(opt, 'data_in_memory', False)
+        self.fc_loader = HybridLoader(self.opt.input_fc_dir_da, '.npy', in_memory=self.data_in_memory)
+        self.att_loader = HybridLoader(self.opt.input_att_dir_da, '.npz', in_memory=self.data_in_memory)
+        # self.box_loader = HybridLoader(self.opt.input_box_dir, '.npy', in_memory=self.data_in_memory)
+
+        self.num_images = len(self.info['images']) # self.label_start_ix.shape[0]
+        print('read %d image features' %(self.num_images))
+
+        # separate out indexes for each of the provided splits
+        self.split_ix = {'train': [], 'val': [], 'test': []}
+        for ix in range(len(self.info['images'])):
+            img = self.info['images'][ix]
+            # data augmentation only for training
+            if img['split'] == 'train':
+                self.split_ix['train'].append(ix)
+
+        print('assigned %d images to split train in da' %len(self.split_ix['train']))
+        print('assigned %d images to split val in da' %len(self.split_ix['val']))
+        print('assigned %d images to split test in da' %len(self.split_ix['test']))
+
+    def __getitem__(self, index):
+        """This function returns a tuple that is further passed to collate_fn
+        """
+        ix, it_pos_now, wrapped = index #self.split_ix[index]
+        if self.use_att:
+            # att_feat = self.att_loader.get(str(self.info['images'][ix]['id']))
+            att_feat = self.att_loader.get(f"{self.info['images'][ix]['imgid']}_{ix%5}")
+            # Reshape to K x C
+            att_feat = att_feat.reshape(-1, att_feat.shape[-1])
+            if self.norm_att_feat:
+                att_feat = att_feat / np.linalg.norm(att_feat, 2, 1, keepdims=True)
+            if self.use_box:
+                box_feat = self.box_loader.get(str(self.info['images'][ix]['id']))
+                # devided by image width and height
+                x1,y1,x2,y2 = np.hsplit(box_feat, 4)
+                h,w = self.info['images'][ix]['height'], self.info['images'][ix]['width']
+                box_feat = np.hstack((x1/w, y1/h, x2/w, y2/h, (x2-x1)*(y2-y1)/(w*h))) # question? x2-x1+1??
+                if self.norm_box_feat:
+                    box_feat = box_feat / np.linalg.norm(box_feat, 2, 1, keepdims=True)
+                att_feat = np.hstack([att_feat, box_feat])
+                # sort the features by the size of boxes
+                att_feat = np.stack(sorted(att_feat, key=lambda x:x[-1], reverse=True))
+        else:
+            att_feat = np.zeros((0,0), dtype='float32')
+        if self.use_fc:
+            try:
+                # fc_feat = self.fc_loader.get(str(self.info['images'][ix]['id']))
+                fc_feat = self.fc_loader.get(f"{self.info['images'][ix]['imgid']}_{ix%5}")
+            except:
+                # Use average of attention when there is no fc provided (For bottomup feature)
+                fc_feat = att_feat.mean(0)
+        else:
+            fc_feat = np.zeros((0), dtype='float32')
+        if hasattr(self, 'h5_label_file'):
+            seq = self.get_captions(ix, self.seq_per_img)
+        else:
+            seq = None
+        return (fc_feat,
+                att_feat, seq,
+                ix, it_pos_now, wrapped)
+
+
 class DataLoader:
     def __init__(self, opt):
         self.opt = opt
         self.batch_size = self.opt.batch_size
-        self.dataset = Dataset(opt)
+        if self.opt.data_augmentation:
+            self.dataset = data.ConcatDataset([Dataset(opt), Dataset_DA(opt)])
+        else:
+            self.dataset = Dataset(opt)
 
         # Initialize loaders and iters
         self.loaders, self.iters = {}, {}

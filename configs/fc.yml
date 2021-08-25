@@ -1,16 +1,23 @@
 caption_model: newfc
-input_json: data/cocotalk.json
-input_fc_dir: data/cocotalk_fc
-input_att_dir: data/cocotalk_att
-input_label_h5: data/cocotalk_label.h5
+input_json: /data/share/image-caption/cocotalk.json
+input_fc_dir: /data/share/image-caption/cocotalk_fc
+input_att_dir: /data/share/image-caption/cocotalk_att
+input_label_h5: /data/share/image-caption/cocotalk_label.h5
 learning_rate: 0.0005
 learning_rate_decay_start: 0
 scheduled_sampling_start: 0
-# checkpoint_path: $ckpt_path
-# $start_from
+checkpoint_path: /data/private/mxy/exp/image-caption/da
+# start_from: /data/share/image-caption/fc_nsc
 language_eval: 1
-save_checkpoint_every: 3000
+save_checkpoint_every: 1000
 val_images_use: 5000
 
-batch_size: 10
+batch_size: 100
 max_epochs: 30
+
+# configs for da
+data_augmentation: True
+input_json_da: /data/share/image-caption/f30ktalk_da.json
+input_fc_dir_da: /data/share/image-caption/f30ktalk_fc_da
+input_att_dir_da: /data/share/image-caption/f30ktalk_att_da
+input_label_h5_da: /data/share/image-caption/f30ktalk_da_label.h5

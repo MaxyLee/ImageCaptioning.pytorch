@@ -6,6 +6,8 @@ import os
 import json
 import argparse
 from six.moves import cPickle
+import sys
+sys.path.append('/data/private/mxy/code/ImageCaptioning.pytorch')
 import captioning.utils.misc as utils
 from collections import defaultdict
 

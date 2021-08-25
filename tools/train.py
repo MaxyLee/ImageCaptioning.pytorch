@@ -14,7 +14,9 @@ import os
 from six.moves import cPickle
 import traceback
 from collections import defaultdict
-
+# for import error
+import sys
+sys.path.append('/data/private/mxy/code/ImageCaptioning.pytorch')
 import captioning.utils.opts as opts
 import captioning.models as models
 from captioning.data.dataloader import *

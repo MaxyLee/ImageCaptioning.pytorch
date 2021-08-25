@@ -38,6 +38,18 @@ def parse_opt():
     parser.add_argument('--cached_tokens', type=str, default='coco-train-idxs',
                     help='Cached token file for calculating cider score during self critical training.')
 
+    # Data Augmentation
+    parser.add_argument('--data_augmentation', type=bool, default=False,
+                    help='True if use generated data as augmentation')
+    parser.add_argument('--input_json_da', type=str, default='data/coco.json',
+                    help='path to the json file containing additional info and vocab')
+    parser.add_argument('--input_fc_dir_da', type=str, default='data/cocotalk_fc',
+                    help='path to the directory containing the preprocessed fc feats')
+    parser.add_argument('--input_att_dir_da', type=str, default='data/cocotalk_att',
+                    help='path to the directory containing the preprocessed att feats')
+    parser.add_argument('--input_label_h5_da', type=str, default='data/coco_label.h5',
+                    help='path to the h5file containing the preprocessed dataset')
+
     # Model settings
     parser.add_argument('--caption_model', type=str, default="show_tell",
                     help='show_tell, show_attend_tell, all_img, fc, att2in, att2in2, att2all2, adaatt, adaattmo, updown, stackatt, denseatt, transformer')
