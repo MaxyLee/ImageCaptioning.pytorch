@@ -107,6 +107,7 @@ class Dataset(data.Dataset):
         # load the json file which contains additional information about the dataset
         print('DataLoader loading json file: ', opt.input_json)
         self.info = json.load(open(self.opt.input_json))
+        self.images = self.info['images']
         if 'ix_to_word' in self.info:
             self.ix_to_word = self.info['ix_to_word']
             self.vocab_size = len(self.ix_to_word)
@@ -136,13 +137,12 @@ class Dataset(data.Dataset):
         self.att_loader = HybridLoader(self.opt.input_att_dir, '.npz', in_memory=self.data_in_memory)
         self.box_loader = HybridLoader(self.opt.input_box_dir, '.npy', in_memory=self.data_in_memory)
 
-        self.num_images = len(self.info['images']) # self.label_start_ix.shape[0]
+        self.num_images = len(self.images) # self.label_start_ix.shape[0]
         print('read %d image features' %(self.num_images))
 
         # separate out indexes for each of the provided splits
         self.split_ix = {'train': [], 'val': [], 'test': []}
-        for ix in range(len(self.info['images'])):
-            img = self.info['images'][ix]
+        for ix, img in enumerate(self.images):
             if not 'split' in img:
                 self.split_ix['train'].append(ix)
                 self.split_ix['val'].append(ix)
@@ -156,14 +156,58 @@ class Dataset(data.Dataset):
             elif opt.train_only == 0: # restval
                 self.split_ix['train'].append(ix)
 
+        if opt.data_augmentation:
+            self.seq_per_img_da = 1
+
+            # load the json file which contains additional information about the dataset
+            print('DataLoader da loading json file: ', opt.input_json_da)
+            self.info_da = json.load(open(self.opt.input_json_da))
+            self.images_da = self.info_da['images']
+            # if 'ix_to_word' in self.info_da:
+            #     self.ix_to_word_da = self.info_da['ix_to_word']
+            #     self.vocab_size_da = len(self.ix_to_word_da)
+            #     print('da vocab size is ', self.vocab_size_da)
+
+            # open the hdf5 file
+            print('DataLoader da loading h5 file: ', opt.input_fc_dir_da, opt.input_att_dir_da, opt.input_label_h5_da)
+
+            if self.opt.input_label_h5 != 'none':
+                self.h5_label_file_da = h5py.File(self.opt.input_label_h5_da, 'r', driver='core')
+                # load in the sequence data
+                seq_size = self.h5_label_file_da['labels'].shape
+                self.label_da = self.h5_label_file_da['labels'][:]
+                self.seq_length_da = seq_size[1]
+                print('max sequence length in da data is', self.seq_length_da)
+                # load the pointers in full to RAM (should be small enough)
+                self.label_start_ix_da = self.h5_label_file_da['label_start_ix'][:]
+                self.label_end_ix_da = self.h5_label_file_da['label_end_ix'][:]
+            else:
+                self.seq_length_da = 1
+
+            self.fc_loader_da = HybridLoader(self.opt.input_fc_dir_da, '.npy', in_memory=self.data_in_memory)
+            self.att_loader_da = HybridLoader(self.opt.input_att_dir_da, '.npz', in_memory=self.data_in_memory)
+
+            self.num_images_da = len(self.images_da) # self.label_start_ix.shape[0]
+            print('read %d da image features' %(self.num_images_da))
+
+            for ix, img in enumerate(self.images_da):
+                # data augmentation only for training
+                if img['split'] == 'train':
+                    self.split_ix['train'].append(ix + self.num_images)
+
         print('assigned %d images to split train' %len(self.split_ix['train']))
         print('assigned %d images to split val' %len(self.split_ix['val']))
         print('assigned %d images to split test' %len(self.split_ix['test']))
 
+
     def get_captions(self, ix, seq_per_img):
         # fetch the sequence labels
-        ix1 = self.label_start_ix[ix] - 1 #label_start_ix starts from 1
-        ix2 = self.label_end_ix[ix] - 1
+        if self.opt.data_augmentation and ix >= self.num_images:
+            ix1 = self.label_start_ix_da[ix - self.num_images] - 1 #label_start_ix starts from 1
+            ix2 = self.label_end_ix_da[ix - self.num_images] - 1
+        else:
+            ix1 = self.label_start_ix[ix] - 1 #label_start_ix starts from 1
+            ix2 = self.label_end_ix[ix] - 1
         ncap = ix2 - ix1 + 1 # number of captions available for this image
         assert ncap > 0, 'an image does not have any label. this can be handled but right now isn\'t'
 
@@ -172,10 +216,16 @@ class Dataset(data.Dataset):
             seq = np.zeros([seq_per_img, self.seq_length], dtype = 'int')
             for q in range(seq_per_img):
                 ixl = random.randint(ix1,ix2)
-                seq[q, :] = self.label[ixl, :self.seq_length]
+                if self.opt.data_augmentation and ix >= self.num_images:
+                    seq[q, :] = self.label_da[ixl, :self.seq_length]
+                else:
+                    seq[q, :] = self.label[ixl, :self.seq_length]
         else:
             ixl = random.randint(ix1, ix2 - seq_per_img + 1)
-            seq = self.label[ixl: ixl + seq_per_img, :self.seq_length]
+            if self.opt.data_augmentation and ix >= self.num_images:
+                seq = self.label_da[ixl: ixl + seq_per_img, :self.seq_length]
+            else:
+                seq = self.label[ixl: ixl + seq_per_img, :self.seq_length]
 
         return seq
 
@@ -210,15 +260,22 @@ class Dataset(data.Dataset):
             # Used for reward evaluation
             if hasattr(self, 'h5_label_file'):
                 # if there is ground truth
-                gts.append(self.label[self.label_start_ix[ix] - 1: self.label_end_ix[ix]])
+                if self.opt.data_augmentation and ix >= self.num_images:
+                    gts.append(self.label_da[self.label_start_ix_da[ix - self.num_images] - 1: self.label_end_ix_da[ix - self.num_images]])
+                else:
+                    gts.append(self.label[self.label_start_ix[ix] - 1: self.label_end_ix[ix]])
             else:
                 gts.append([])
         
             # record associated info as well
             info_dict = {}
             info_dict['ix'] = ix
-            info_dict['id'] = self.info['images'][ix]['id']
-            info_dict['file_path'] = self.info['images'][ix].get('file_path', '')
+            if self.opt.data_augmentation and ix >= self.num_images:
+                info_dict['id'] = self.images_da[ix - self.num_images]['id']
+                # info_dict['file_path'] = self.images_da[ix - self.num_images].get('file_path', '')
+            else:
+                info_dict['id'] = self.images[ix]['id']
+                info_dict['file_path'] = self.info['images'][ix].get('file_path', '')
             infos.append(info_dict)
 
         # #sort by att_feat length
@@ -264,16 +321,19 @@ class Dataset(data.Dataset):
         """
         ix, it_pos_now, wrapped = index #self.split_ix[index]
         if self.use_att:
-            att_feat = self.att_loader.get(str(self.info['images'][ix]['id']))
+            if self.opt.data_augmentation and ix >= self.num_images:
+                att_feat = self.att_loader_da.get(self.info_da['images'][ix - self.num_images]['id'])
+            else:
+                att_feat = self.att_loader.get(str(self.images[ix]['id']))
             # Reshape to K x C
             att_feat = att_feat.reshape(-1, att_feat.shape[-1])
             if self.norm_att_feat:
                 att_feat = att_feat / np.linalg.norm(att_feat, 2, 1, keepdims=True)
             if self.use_box:
-                box_feat = self.box_loader.get(str(self.info['images'][ix]['id']))
+                box_feat = self.box_loader.get(str(self.images[ix]['id']))
                 # devided by image width and height
                 x1,y1,x2,y2 = np.hsplit(box_feat, 4)
-                h,w = self.info['images'][ix]['height'], self.info['images'][ix]['width']
+                h,w = self.images[ix]['height'], self.images[ix]['width']
                 box_feat = np.hstack((x1/w, y1/h, x2/w, y2/h, (x2-x1)*(y2-y1)/(w*h))) # question? x2-x1+1??
                 if self.norm_box_feat:
                     box_feat = box_feat / np.linalg.norm(box_feat, 2, 1, keepdims=True)
@@ -283,11 +343,14 @@ class Dataset(data.Dataset):
         else:
             att_feat = np.zeros((0,0), dtype='float32')
         if self.use_fc:
-            try:
-                fc_feat = self.fc_loader.get(str(self.info['images'][ix]['id']))
-            except:
+            # try:
+            if self.opt.data_augmentation and ix >= self.num_images:
+                fc_feat = self.fc_loader_da.get(str(self.info_da['images'][ix - self.num_images]['id']))
+            else:
+                fc_feat = self.fc_loader.get(str(self.images[ix]['id']))
+            # except:
                 # Use average of attention when there is no fc provided (For bottomup feature)
-                fc_feat = att_feat.mean(0)
+                # fc_feat = att_feat.mean(0)
         else:
             fc_feat = np.zeros((0), dtype='float32')
         if hasattr(self, 'h5_label_file'):
@@ -299,117 +362,16 @@ class Dataset(data.Dataset):
                 ix, it_pos_now, wrapped)
 
     def __len__(self):
-        return len(self.info['images'])
-
-class Dataset_DA(Dataset):
-    def __init__(self, opt):
-        self.opt = opt
-        self.seq_per_img = 1
-        
-        # feature related options
-        self.use_fc = getattr(opt, 'use_fc', True)
-        self.use_att = getattr(opt, 'use_att', True)
-        self.use_box = getattr(opt, 'use_box', 0)
-        self.norm_att_feat = getattr(opt, 'norm_att_feat', 0)
-        self.norm_box_feat = getattr(opt, 'norm_box_feat', 0)
-
-        # load the json file which contains additional information about the dataset
-        print('DataLoader da loading json file: ', opt.input_json_da)
-        self.info = json.load(open(self.opt.input_json_da))
-        if 'ix_to_word' in self.info:
-            self.ix_to_word = self.info['ix_to_word']
-            self.vocab_size = len(self.ix_to_word)
-            print('vocab size is ', self.vocab_size)
-        
-        # open the hdf5 file
-        print('DataLoader da loading h5 file: ', opt.input_fc_dir_da, opt.input_att_dir_da, opt.input_label_h5_da)
-        """
-        Setting input_label_h5 to none is used when only doing generation.
-        For example, when you need to test on coco test set.
-        """
-        if self.opt.input_label_h5 != 'none':
-            self.h5_label_file = h5py.File(self.opt.input_label_h5_da, 'r', driver='core')
-            # load in the sequence data
-            seq_size = self.h5_label_file['labels'].shape
-            self.label = self.h5_label_file['labels'][:]
-            self.seq_length = seq_size[1]
-            print('max sequence length in data is', self.seq_length)
-            # load the pointers in full to RAM (should be small enough)
-            self.label_start_ix = self.h5_label_file['label_start_ix'][:]
-            self.label_end_ix = self.h5_label_file['label_end_ix'][:]
+        if self.opt.data_augmentation:
+            return len(self.images) + len(self.info_da['images'])
         else:
-            self.seq_length = 1
-
-        self.data_in_memory = getattr(opt, 'data_in_memory', False)
-        self.fc_loader = HybridLoader(self.opt.input_fc_dir_da, '.npy', in_memory=self.data_in_memory)
-        self.att_loader = HybridLoader(self.opt.input_att_dir_da, '.npz', in_memory=self.data_in_memory)
-        # self.box_loader = HybridLoader(self.opt.input_box_dir, '.npy', in_memory=self.data_in_memory)
-
-        self.num_images = len(self.info['images']) # self.label_start_ix.shape[0]
-        print('read %d image features' %(self.num_images))
-
-        # separate out indexes for each of the provided splits
-        self.split_ix = {'train': [], 'val': [], 'test': []}
-        for ix in range(len(self.info['images'])):
-            img = self.info['images'][ix]
-            # data augmentation only for training
-            if img['split'] == 'train':
-                self.split_ix['train'].append(ix)
-
-        print('assigned %d images to split train in da' %len(self.split_ix['train']))
-        print('assigned %d images to split val in da' %len(self.split_ix['val']))
-        print('assigned %d images to split test in da' %len(self.split_ix['test']))
-
-    def __getitem__(self, index):
-        """This function returns a tuple that is further passed to collate_fn
-        """
-        ix, it_pos_now, wrapped = index #self.split_ix[index]
-        if self.use_att:
-            # att_feat = self.att_loader.get(str(self.info['images'][ix]['id']))
-            att_feat = self.att_loader.get(f"{self.info['images'][ix]['imgid']}_{ix%5}")
-            # Reshape to K x C
-            att_feat = att_feat.reshape(-1, att_feat.shape[-1])
-            if self.norm_att_feat:
-                att_feat = att_feat / np.linalg.norm(att_feat, 2, 1, keepdims=True)
-            if self.use_box:
-                box_feat = self.box_loader.get(str(self.info['images'][ix]['id']))
-                # devided by image width and height
-                x1,y1,x2,y2 = np.hsplit(box_feat, 4)
-                h,w = self.info['images'][ix]['height'], self.info['images'][ix]['width']
-                box_feat = np.hstack((x1/w, y1/h, x2/w, y2/h, (x2-x1)*(y2-y1)/(w*h))) # question? x2-x1+1??
-                if self.norm_box_feat:
-                    box_feat = box_feat / np.linalg.norm(box_feat, 2, 1, keepdims=True)
-                att_feat = np.hstack([att_feat, box_feat])
-                # sort the features by the size of boxes
-                att_feat = np.stack(sorted(att_feat, key=lambda x:x[-1], reverse=True))
-        else:
-            att_feat = np.zeros((0,0), dtype='float32')
-        if self.use_fc:
-            try:
-                # fc_feat = self.fc_loader.get(str(self.info['images'][ix]['id']))
-                fc_feat = self.fc_loader.get(f"{self.info['images'][ix]['imgid']}_{ix%5}")
-            except:
-                # Use average of attention when there is no fc provided (For bottomup feature)
-                fc_feat = att_feat.mean(0)
-        else:
-            fc_feat = np.zeros((0), dtype='float32')
-        if hasattr(self, 'h5_label_file'):
-            seq = self.get_captions(ix, self.seq_per_img)
-        else:
-            seq = None
-        return (fc_feat,
-                att_feat, seq,
-                ix, it_pos_now, wrapped)
-
+            return len(self.images)
 
 class DataLoader:
     def __init__(self, opt):
         self.opt = opt
         self.batch_size = self.opt.batch_size
-        if self.opt.data_augmentation:
-            self.dataset = data.ConcatDataset([Dataset(opt), Dataset_DA(opt)])
-        else:
-            self.dataset = Dataset(opt)
+        self.dataset = Dataset(opt)
 
         # Initialize loaders and iters
         self.loaders, self.iters = {}, {}

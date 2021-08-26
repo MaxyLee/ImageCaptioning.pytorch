@@ -18,6 +18,6 @@ max_epochs: 30
 # configs for da
 data_augmentation: True
 input_json_da: /data/share/image-caption/f30ktalk_da.json
-input_fc_dir_da: /data/share/image-caption/f30ktalk_fc_da
-input_att_dir_da: /data/share/image-caption/f30ktalk_att_da
+input_fc_dir_da: /data/share/image-caption/f30ktalk_da_fc
+input_att_dir_da: /data/share/image-caption/f30ktalk_da_att
 input_label_h5_da: /data/share/image-caption/f30ktalk_da_label.h5

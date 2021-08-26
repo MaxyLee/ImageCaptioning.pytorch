@@ -16,10 +16,10 @@ LBL_JSON_DA=$DATA_ROOT/f30ktalk_da.json
 LBL_H5_DA=$DATA_ROOT/f30ktalk_da
 
 # pre labels for da
-# python scripts/prepro_labels.py \
-#     --input_json $JSON_DA \
-#     --output_json $LBL_JSON_DA \
-#     --output_h5 $LBL_H5_DA
+python scripts/prepro_labels_da.py \
+    --input_json $JSON_DA \
+    --output_json $LBL_JSON_DA \
+    --output_h5 $LBL_H5_DA
 
 # pre ngram for da
 # python scripts/prepro_ngrams.py \
@@ -37,8 +37,8 @@ LBL_H5_DA=$DATA_ROOT/f30ktalk_da
 #     --model_root $MODEL
 
 # pre feats
-python scripts/prepro_feats.py \
-    --input_json $JSON \
-    --output_dir $OUT_DIR \
-    --images_root $IMG_ROOT \
-    --model_root $MODEL
+# python scripts/prepro_feats.py \
+#     --input_json $JSON \
+#     --output_dir $OUT_DIR \
+#     --images_root $IMG_ROOT \
+#     --model_root $MODEL
