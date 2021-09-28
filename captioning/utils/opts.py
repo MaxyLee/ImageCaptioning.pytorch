@@ -49,6 +49,8 @@ def parse_opt():
                     help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_label_h5_da', type=str, default='data/coco_label.h5',
                     help='path to the h5file containing the preprocessed dataset')
+    parser.add_argument('--seq_per_img_da', type=int, default=5,
+                    help='number of captions to sample for each image during training. Done for efficiency since CNN forward pass is expensive. E.g. coco has 5 sents/image')
 
     # Model settings
     parser.add_argument('--caption_model', type=str, default="show_tell",

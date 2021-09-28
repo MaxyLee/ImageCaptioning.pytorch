@@ -25,7 +25,6 @@ def write_json(root, img_num):
             }
             dataset_da['images'].append(new_img)
 
-
     with open(f'{root}/dataset_flickr30k_da.json', 'w') as fout:
         json.dump(dataset_da, fout)
 

@@ -9,11 +9,16 @@ OUT_DIR=$DATA_ROOT/f30ktalk
 IMG_ROOT=/data/share/UNITER/origin_imgs/flickr30k/flickr30k-images
 
 # da
-JSON_DA=$DATA_ROOT/dataset_flickr30k_da.json
-OUT_DIR_DA=$DATA_ROOT/f30ktalk_da
-IMG_ROOT_DA=/data/private/mxy/code/T2I_CL/DM-GAN+CL/output/coco_DMGAN_2021_08_15_14_19_42/Model/netG_epoch_120/f30k
-LBL_JSON_DA=$DATA_ROOT/f30ktalk_da.json
-LBL_H5_DA=$DATA_ROOT/f30ktalk_da
+# JSON_DA=$DATA_ROOT/dataset_coco.json
+JSON_DA=$DATA_ROOT/dataset_coco_lostgan_sub.json
+# JSON_DA=/data/share/data/coco2017/annotations/dataset_coco_lostgan.json # sub
+OUT_DIR_DA=$DATA_ROOT/cocotalk_da_lostgan_sub
+# IMG_ROOT_DA=/data/private/mxy/code/T2I_CL/DM-GAN+CL/output/coco_DMGAN_2021_08_15_14_19_42/Model/netG_epoch_120/f30k
+# IMG_ROOT_DA=/data/share/Seg-Backtranslation/data/gen_imgs/train2017_2
+# IMG_ROOT_DA=/data/share/Seg-Backtranslation/data/gen_imgs_lostgan_train
+IMG_ROOT_DA=/data/share/Seg-Backtranslation/data/gen_imgs_lostgan_train_sub
+LBL_JSON_DA=$DATA_ROOT/cocotalk_da_lostgan_sub.json
+LBL_H5_DA=$DATA_ROOT/cocotalk_da_lostgan_sub
 
 # pre labels for da
 python scripts/prepro_labels_da.py \

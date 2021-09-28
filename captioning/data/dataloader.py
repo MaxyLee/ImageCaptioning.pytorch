@@ -157,7 +157,7 @@ class Dataset(data.Dataset):
                 self.split_ix['train'].append(ix)
 
         if opt.data_augmentation:
-            self.seq_per_img_da = 1
+            self.seq_per_img_da = opt.seq_per_img_da
 
             # load the json file which contains additional information about the dataset
             print('DataLoader da loading json file: ', opt.input_json_da)
@@ -192,7 +192,7 @@ class Dataset(data.Dataset):
 
             for ix, img in enumerate(self.images_da):
                 # data augmentation only for training
-                if img['split'] == 'train':
+                if img['split'] == 'train' or img['split'] == 'restval':
                     self.split_ix['train'].append(ix + self.num_images)
 
         print('assigned %d images to split train' %len(self.split_ix['train']))
@@ -322,7 +322,7 @@ class Dataset(data.Dataset):
         ix, it_pos_now, wrapped = index #self.split_ix[index]
         if self.use_att:
             if self.opt.data_augmentation and ix >= self.num_images:
-                att_feat = self.att_loader_da.get(self.info_da['images'][ix - self.num_images]['id'])
+                att_feat = self.att_loader_da.get(self.images_da[ix - self.num_images]['id'])
             else:
                 att_feat = self.att_loader.get(str(self.images[ix]['id']))
             # Reshape to K x C
@@ -345,7 +345,7 @@ class Dataset(data.Dataset):
         if self.use_fc:
             # try:
             if self.opt.data_augmentation and ix >= self.num_images:
-                fc_feat = self.fc_loader_da.get(str(self.info_da['images'][ix - self.num_images]['id']))
+                fc_feat = self.fc_loader_da.get(str(self.images_da[ix - self.num_images]['id']))
             else:
                 fc_feat = self.fc_loader.get(str(self.images[ix]['id']))
             # except:
@@ -363,7 +363,7 @@ class Dataset(data.Dataset):
 
     def __len__(self):
         if self.opt.data_augmentation:
-            return len(self.images) + len(self.info_da['images'])
+            return len(self.images) + len(self.images_da)
         else:
             return len(self.images)
 

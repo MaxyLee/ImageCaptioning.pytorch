@@ -62,30 +62,53 @@ def main(params):
 
     total_cnt = 0
     for i,img in enumerate(imgs):
-        if i != img['imgid']:
-            print(f"Error: id {img['imgid']} != index {i}")
-            continue
-        for j in range(len(img['sentences'])):
-            img_name = f"{params['images_root']}/{i}/0_s_{j}_g2.png"
-            if not os.path.isfile(img_name):
-                print(f'{img_name} not exist!')
-                break
-            # load the image
-            I = skimage.io.imread(img_name)
-            # handle grayscale input images
-            if len(I.shape) == 2:
-                I = I[:,:,np.newaxis]
-                I = np.concatenate((I,I,I), axis=2)
+        # flickr
+        # if i != img['imgid']:
+        #     print(f"Error: id {img['imgid']} != index {i}")
+        #     continue
+        # for j in range(len(img['sentences'])):
+            # img_name = f"{params['images_root']}/{i}/0_s_{j}_g2.png"
+            # if not os.path.isfile(img_name):
+            #     print(f'{img_name} not exist!')
+            #     break
+            # # load the image
+            # I = skimage.io.imread(img_name)
+            # # handle grayscale input images
+            # if len(I.shape) == 2:
+            #     I = I[:,:,np.newaxis]
+            #     I = np.concatenate((I,I,I), axis=2)
 
-            I = I.astype('float32')/255.0
-            I = torch.from_numpy(I.transpose([2,0,1])).cuda()
-            I = preprocess(I)
-            with torch.no_grad():
-                tmp_fc, tmp_att = my_resnet(I, params['att_size'])
-            # write to pkl
-            np.save(f"{dir_fc}/{i}_{j}", tmp_fc.data.cpu().float().numpy())
-            np.savez_compressed(f"{dir_att}/{i}_{j}", feat=tmp_att.data.cpu().float().numpy())
-            total_cnt += 1
+            # I = I.astype('float32')/255.0
+            # I = torch.from_numpy(I.transpose([2,0,1])).cuda()
+            # I = preprocess(I)
+            # with torch.no_grad():
+            #     tmp_fc, tmp_att = my_resnet(I, params['att_size'])
+            # # write to pkl
+            # np.save(f"{dir_fc}/{i}_{j}", tmp_fc.data.cpu().float().numpy())
+            # np.savez_compressed(f"{dir_att}/{i}_{j}", feat=tmp_att.data.cpu().float().numpy())
+            # total_cnt += 1
+
+        # coco
+        img_name = f"{params['images_root']}/{str(img['cocoid']).zfill(12)}.jpg"
+        if not os.path.isfile(img_name):
+            print(f'{img_name} not exist!')
+            continue
+        # load the image
+        I = skimage.io.imread(img_name)
+        # handle grayscale input images
+        if len(I.shape) == 2:
+            I = I[:,:,np.newaxis]
+            I = np.concatenate((I,I,I), axis=2)
+
+        I = I.astype('float32')/255.0
+        I = torch.from_numpy(I.transpose([2,0,1])).cuda()
+        I = preprocess(I)
+        with torch.no_grad():
+            tmp_fc, tmp_att = my_resnet(I, params['att_size'])
+        # write to pkl
+        np.save(f"{dir_fc}/{img['cocoid']}", tmp_fc.data.cpu().float().numpy())
+        np.savez_compressed(f"{dir_att}/{img['cocoid']}", feat=tmp_att.data.cpu().float().numpy())
+        total_cnt += 1
 
         if i % 1000 == 0:
             print('processing %d/%d (%.2f%% done) total images: %d' % (i, N, i*100.0/N, total_cnt))
@@ -100,6 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', default='data', help='output h5 file')
 
     # options
+    parser.add_argument('--batch_size', default=14, type=int, help='14x14 or 7x7')
     parser.add_argument('--images_root', default='', help='root location in which images are stored, to be prepended to file_path in input json')
     parser.add_argument('--att_size', default=14, type=int, help='14x14 or 7x7')
     parser.add_argument('--model', default='resnet101', type=str, help='resnet101, resnet152')

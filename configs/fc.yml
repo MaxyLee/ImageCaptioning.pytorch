@@ -6,7 +6,7 @@ input_label_h5: /data/share/image-caption/cocotalk_label.h5
 learning_rate: 0.0005
 learning_rate_decay_start: 0
 scheduled_sampling_start: 0
-checkpoint_path: /data/private/mxy/exp/image-caption/da
+checkpoint_path: /data/private/mxy/exp/image-caption/da/coco_lostgan_sub
 # start_from: /data/share/image-caption/fc_nsc
 language_eval: 1
 save_checkpoint_every: 1000
@@ -17,7 +17,8 @@ max_epochs: 30
 
 # configs for da
 data_augmentation: True
-input_json_da: /data/share/image-caption/f30ktalk_da.json
-input_fc_dir_da: /data/share/image-caption/f30ktalk_da_fc
-input_att_dir_da: /data/share/image-caption/f30ktalk_da_att
-input_label_h5_da: /data/share/image-caption/f30ktalk_da_label.h5
+input_json_da: /data/share/image-caption/cocotalk_da_lostgan_sub.json
+input_fc_dir_da: /data/share/image-caption/cocotalk_da_lostgan_sub_fc
+input_att_dir_da: /data/share/image-caption/cocotalk_da_lostgan_sub_att
+input_label_h5_da: /data/share/image-caption/cocotalk_da_lostgan_label.h5
+seq_per_img_da: 1
